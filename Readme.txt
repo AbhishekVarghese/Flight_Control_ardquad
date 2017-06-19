@@ -16,7 +16,7 @@ void setup()
 
 void loop()
   {
-  	while(Serial.available()=0);//just to move forward if there is input
+	 while(Serial.available()==0);//just to move forward if there is input
 	float d1=analogRead(s1);
 	float d2=analogRead(s2);
 	float d3=analogRead(s3);
