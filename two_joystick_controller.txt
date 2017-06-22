@@ -1,0 +1,107 @@
+
+int Throttle = A0;
+
+int Yaw      = A1;
+
+int Pitch    = A2;  //forward bend is +ive pitch
+
+int Roll     = A3;  // right roll is +ive
+
+//int butt1  = 1;
+
+//int butt2  = 2;
+  // there are also buttons on the joystick in z direction
+
+
+
+int throttle= 0;
+
+int yaw     = 0;
+
+int pitch   = 0;
+
+int roll    = 0;
+
+//int B1  = 0;
+
+//int B2  = 0;
+
+
+
+  
+
+void setup()
+
+{
+
+   Serial.begin(9600);
+
+   pinMode(Throttle,INPUT);
+
+   pinMode(Yaw,INPUT);
+ 
+  pinMode(Pitch,INPUT);
+ 
+  pinMode(Roll,INPUT);
+ 
+ 
+//pinMode(butt1,INPUT_PULLUP);
+
+//PINMode(butt2,INPUT_PULLUP);
+
+}
+
+
+
+
+
+void loop()
+
+{
+  
+   throttle = analogRead(Throttle);
+
+   yaw      = analogRead(Yaw);
+ 
+  pitch    = analogRead(Pitch);
+
+   roll     = analogRead(Roll);
+ 
+//B1       = digitalRead(butt1);
+
+//B2       = digitalRead(butt2);
+
+
+
+
+//code just for checking the working of both sticks
+
+
+
+  Serial.print("Throttel: ");
+
+  Serial.println(throttle);
+
+  Serial.print("Yaw: ");
+
+  Serial.println(yaw);
+
+  Serial.print("Pitch: ");
+
+  Serial.println(pitch);
+
+  Serial.print("Roll: ");
+
+  Serial.println(roll);
+
+//  Serial.print("Button 1: ");
+
+//  Serial.println(B1);
+
+//  Serial.print("Button 2: ");
+
+//  Serial.println(B2);
+
+}
+
+
