@@ -4,38 +4,74 @@
 #include <RF24.h>
 #include <PID>
 
+// -----------------------GYRO ---------------------
+#include<Wire.h>
+const int MPU_addr=0x68;
+double AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ; 
+uint32_t timer; 
+double compAngleX, compAngleY;
+#define degconvert 57.2957786 
+
+//----------------------GYRO END-------------------
 
 
 
-RF24 radio(8,7); // CNS, CE
+
+RF24 radio(7,8); 
 const byte address[6] = "00001";
 Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of moters
 
-double s1=1,s2=2,s3=3,s4=4;//FOR NOW the directions for speed later these will be replaced with inputs from gyro
+
 double P,I,D;
 
-double yaw,pitch,roll;
+double req_yaw,req_pitch,req_roll;
 int throttle,hover;
 
-double inp_yaw,inp_pitch,inp_roll;
+double inp_roll;
 double out_yaw,out_pitch,out_roll;
 
 double inp_data[5];
 
-PID pitchPID(&inp_pitch, &out_pitch, &pitch,P,I,D, DIRECT);
-PID rollPID(&inp_roll, &out_roll, &roll,P,I,D, DIRECT);
+PID pitchPID(&compAngleY, &out_pitch, &req_pitch,P,I,D, DIRECT);
+PID rollPID(&compAngleX, &out_roll, &req_roll,P,I,D, DIRECT);
 
 
 int arm{
-  int hov_thrr = 0;
-  for (int i =0 ; i< 180 ;i++){
+  int hov_throttle = 20;
+   Wire.beginTransmission(MPU_addr);
+  Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_addr,14,true);  // request a total of 14 registers
+  AcX=Wire.read()<<8|Wire.read();  // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)     
+  AcY=Wire.read()<<8|Wire.read();  // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+  AcZ=Wire.read()<<8|Wire.read();  // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+  Tmp=Wire.read()<<8|Wire.read();  // 0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+  GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+  GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+  GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+  int prev_acc = AcY;
+  for (int i =hov_throttle ; i< 180 ;i++){
     //accy will get from gyro code
-    if(acc_y>9.8){
+     Wire.beginTransmission(MPU_addr);
+    Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
+    Wire.endTransmission(false);
+    Wire.requestFrom(MPU_addr,14,true);  // request a total of 14 registers
+    AcX=Wire.read()<<8|Wire.read();  // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)     
+    AcY=Wire.read()<<8|Wire.read();  // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+    AcZ=Wire.read()<<8|Wire.read();  // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+    Tmp=Wire.read()<<8|Wire.read();  // 0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+    GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+    GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+    GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+
+    if(abs(acY- prev_acc)>9.8){
       break
     }
-    hov_thrr+=1;
+    conf_throttle(i);
+    hov_throttle+=1;
+    delay(1000);
   }
-  return hov_thrr
+  return hov_throttle;
 }
 
 void wait_for_arm() {
@@ -51,10 +87,58 @@ void wait_for_arm() {
 
 void setup()
   {
-  m1.attach(10);//atttaching moters to the pins 
-  m2.attach(9); //use pins with ~ these are pulse wirdth modulation pins
-  m3.attach(6);
-  m4.attach(5);
+
+    //-----------------------GYRO -------------------------------
+
+     Wire.begin();
+  #if ARDUINO >= 157
+  Wire.setClock(400000UL); // Set I2C frequency to 400kHz
+  #else
+    TWBR = ((F_CPU / 400000UL) - 16) / 2; // Set I2C frequency to 400kHz
+  #endif
+
+  
+  Wire.beginTransmission(MPU_addr);
+  Wire.write(0x6B);  // PWR_MGMT_1 register
+  Wire.write(0);     // set to zero (wakes up the MPU-6050)
+  Wire.endTransmission(true);
+  Serial.begin(9600);
+  delay(100);
+
+  //setup starting angle
+  //1) collect the data
+  Wire.beginTransmission(MPU_addr);
+  Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_addr,14,true);  // request a total of 14 registers
+  AcX=Wire.read()<<8|Wire.read();  // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)     
+  AcY=Wire.read()<<8|Wire.read();  // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+  AcZ=Wire.read()<<8|Wire.read();  // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+  Tmp=Wire.read()<<8|Wire.read();  // 0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+  GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+  GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+  GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+
+  //2) calculate pitch and roll
+  double roll = atan2(AcY, AcZ)*degconvert;
+  double pitch = atan2(-AcX, AcZ)*degconvert;
+
+  //3) set the starting angle to this pitch and roll
+  double gyroXangle = roll;
+  double gyroYangle = pitch;
+  double compAngleX = roll;
+  double compAngleY = pitch;
+
+  //start a timer
+  timer = micros();
+
+  //-----------------------------GYRO END-------------------------------
+
+
+  m1.attach(5);//atttaching moters to the pins 
+  m2.attach(6); //use pins with ~ these are pulse wirdth modulation pins
+  m3.attach(9);
+  m4.attach(10);
   Serial.begin(9600);
   radio.begin();
   radio.openReadingPipe(0, address);
@@ -74,7 +158,7 @@ void setup()
   wait_for_arm();
 }
 
-void throttle( int power) {
+void conf_throttle( int power) {
   //power ranges from 0 to  180
   m1.write(power);
   m2.write(power);
@@ -82,52 +166,78 @@ void throttle( int power) {
   m4.write(power);
 }
 
-void pitch( double angle, int float_power) {
-  int power_diff = map( abs(angle),0,22,float_power,180);
-  if (angle>0){
-    m1.write(float_power+power_diff);
-    m2.write(float_power+ power_diff);
-    m3.write(float_power -power_diff);
-    m4.write(float_power -power_diff);
+void conf_pitch( double angle) {
+  
+  angle = angle-compAngleY ;
+  if (angle<0){
+    m1.write(hover + 5);
+    m2.write(hover+5);
+    m3.write(hover-5);
+    m4.write(hover-5);
   }
 
-  else if (angle<0) {
-    m1.write(float_power-power_diff);
-    m2.write(float_power- power_diff);
-    m3.write(float_power +power_diff);
-    m4.write(float_power + power_diff);
-
+  else if (angle>0) {
+    m1.write(hover - 5);
+    m2.write(hover-5);
+    m3.write(hover+5);
+    m4.write(hover+5);
   }
 }
 
 
-void roll( double angle, int float_power) {
-  int power_diff = map( abs(angle),0,22,float_power,180);
-  if (angle>0){
-    m3.write(float_power+power_diff);
-    m2.write(float_power+ power_diff);
-    m1.write(float_power -power_diff);
-    m4.write(float_power -power_diff);
+void conf_roll( double angle) {
+  
+  angle = angle-compAngleX ;
+  if (angle<0){
+    m1.write(hover - 5);
+    m2.write(hover+5);
+    m3.write(hover+5);
+    m4.write(hover-5);
   }
 
-  else if (angle<0) {
-    m3.write(float_power-power_diff);
-    m2.write(float_power- power_diff);
-    m1.write(float_power +power_diff);
-    m4.write(float_power + power_diff);
-
+  else if (angle>0) {
+    m1.write(hover + 5);
+    m2.write(hover-5);
+    m3.write(hover-5);
+    m4.write(hover+5);
   }
 }
 
 
 void loop()
   {
+    //--------------GYRO ----------------------------
+     Wire.beginTransmission(MPU_addr);
+  Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_addr,14,true);  // request a total of 14 registers
+  AcX=Wire.read()<<8|Wire.read();  // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)     
+  AcY=Wire.read()<<8|Wire.read();  // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+  AcZ=Wire.read()<<8|Wire.read();  // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+  Tmp=Wire.read()<<8|Wire.read();  // 0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+  GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+  GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+  GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+  
+  double dt = (double)(micros() - timer) / 1000000; //This line does three things: 1) stops the timer, 2)converts the timer's output to seconds from microseconds, 3)casts the value as a double saved to "dt".
+  timer = micros(); //start the timer again so that we can calculate the next dt.
+
+  double roll = atan2(AcY, AcZ)*degconvert;
+  double pitch = atan2(-AcX, AcZ)*degconvert;
+
+  double gyroXrate = GyX/131.0;
+  double gyroYrate = GyY/131.0; 
+  compAngleX = 0.99 * (compAngleX + gyroXrate * dt) + 0.01 * roll; // Calculate the angle using a Complimentary filter
+  compAngleY = 0.99 * (compAngleY + gyroYrate * dt) + 0.01 * pitch; 
+  Serial.print(compAngleX);Serial.print("\t");
+  Serial.print(compAngleY);Serial.print("\n");
+  //---------------------------------Gyroend--------------------------------
    
   if (radio.available()) {
     radio.read(&inp_data, sizeof(data));
-    roll = inp_data[0];
-    pitch = inp_data[1];
-    yaw = inp_data[2];
+    req_roll = inp_data[0];
+    req_pitch = inp_data[1];
+    req_yaw = inp_data[2];
     throttle = inp_data[3];
     
   }
@@ -138,9 +248,10 @@ void loop()
   pitchPID.compute();
   rollPID.compute();
 
-  pitch(out_pitch,hover);
-  roll(out_roll,hover);
+  conf_pitch(out_pitch);
+  conf_roll(out_roll);
   
+
 
    }
 
