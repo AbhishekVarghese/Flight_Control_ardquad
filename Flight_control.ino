@@ -20,23 +20,7 @@ double compAngleX, compAngleY;
 RF24 radio(8,7); 
 const byte address_read[6] = "00001";
 const byte address_write[6] = "00002";
-Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of moters
-//---------------------------checking if connections are proper----------------------------
-void checking()
-{int text,i=0;
-  while(radio.available())
-  {
-    radio.read(text,sizeof(text));
-    if(text==32)i++;
-    if(i==20)break;
-  }
-//----------------------------done checking-----------------------------------  
-radio.stopListening();
-radio.openWritingPipe(address_write);
-text=16;
-for(int j=0;j<30;j++)radio.write(text,sizeof(text));
-radio.startListening();
-}
+Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of motors
 
 double P,I,D;
 
@@ -52,6 +36,29 @@ int motor_power[4];
 
 PID pitchPID(&compAngleY, &out_pitch, &req_pitch,P,I,D, DIRECT);
 PID rollPID(&compAngleX, &out_roll, &req_roll,P,I,D, DIRECT);
+
+void checking()
+{
+  int text = 1,i=0;
+  while(true)
+  {
+    if (radio.available()){
+      radio.read(&text,sizeof(text));
+      if(text==32)i++;
+      if(i==20)break;
+    }
+
+
+  }
+
+  radio.stopListening();
+  text=16;
+  for(int i = 0; i < 20 ; i++) {
+    if (radio.write(&text,sizeof(text))) {
+      continue;
+    }
+  }
+}
 
 
 int arm(){
@@ -160,6 +167,7 @@ void setup()
   Serial.begin(9600);
   radio.begin();
   radio.openReadingPipe(0, address_read);
+  radio.openWritingPipe(address_write);
   radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
   
