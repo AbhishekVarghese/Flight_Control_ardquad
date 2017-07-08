@@ -2,7 +2,7 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <PID>
+#include <PID_v1.h>
 
 // -----------------------GYRO ---------------------
 #include<Wire.h>
@@ -31,12 +31,14 @@ double inp_roll;
 double out_yaw,out_pitch,out_roll;
 
 double inp_data[5];
+int motor_power[4];
+
 
 PID pitchPID(&compAngleY, &out_pitch, &req_pitch,P,I,D, DIRECT);
 PID rollPID(&compAngleX, &out_roll, &req_roll,P,I,D, DIRECT);
 
 
-int arm{
+int arm(){
   int hov_throttle = 20;
    Wire.beginTransmission(MPU_addr);
   Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
@@ -64,8 +66,8 @@ int arm{
     GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
     GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-    if(abs(acY- prev_acc)>9.8){
-      break
+    if(abs(AcY- prev_acc)>500){
+      break;
     }
     conf_throttle(i);
     hov_throttle+=1;
@@ -149,9 +151,9 @@ void setup()
   rollPID.SetMode(AUTOMATIC);
 
   // Restting the parameters
-  roll = 0;
-  ptich = 0;
-  yaw = 0;
+  req_roll = 0;
+  req_pitch = 0;
+  req_yaw = 0;
   throttle = 0;
 
   //Watiting for ignition
@@ -169,18 +171,19 @@ void conf_throttle( int power) {
 void conf_pitch( double angle) {
   
   angle = angle-compAngleY ;
+  int increment = map(abs(angle),0,20,hover,180);
   if (angle<0){
-    m1.write(hover + 5);
-    m2.write(hover+5);
-    m3.write(hover-5);
-    m4.write(hover-5);
+    m1.write(hover + increment);
+    m2.write(hover+increment);
+    m3.write(hover-increment);
+    m4.write(hover-increment);
   }
 
   else if (angle>0) {
-    m1.write(hover - 5);
-    m2.write(hover-5);
-    m3.write(hover+5);
-    m4.write(hover+5);
+    m1.write(hover - increment);
+    m2.write(hover-increment);
+    m3.write(hover+increment);
+    m4.write(hover+increment);
   }
 }
 
@@ -188,18 +191,19 @@ void conf_pitch( double angle) {
 void conf_roll( double angle) {
   
   angle = angle-compAngleX ;
+ int  increment = map(abs(angle),0,20,hover,180);
   if (angle<0){
-    m1.write(hover - 5);
-    m2.write(hover+5);
-    m3.write(hover+5);
-    m4.write(hover-5);
+    m1.write(hover - increment);
+    m2.write(hover+increment);
+    m3.write(hover+increment);
+    m4.write(hover-increment);
   }
 
   else if (angle>0) {
-    m1.write(hover + 5);
-    m2.write(hover-5);
-    m3.write(hover-5);
-    m4.write(hover+5);
+    m1.write(hover + increment);
+    m2.write(hover-increment);
+    m3.write(hover-increment);
+    m4.write(hover+increment);
   }
 }
 
@@ -234,7 +238,7 @@ void loop()
   //---------------------------------Gyroend--------------------------------
    
   if (radio.available()) {
-    radio.read(&inp_data, sizeof(data));
+    radio.read(&inp_data, sizeof(inp_data));
     req_roll = inp_data[0];
     req_pitch = inp_data[1];
     req_yaw = inp_data[2];
@@ -245,13 +249,16 @@ void loop()
 
   //Auto ajdjust roll,pitch and yaw
 
-  pitchPID.compute();
-  rollPID.compute();
+  pitchPID.Compute();
+  rollPID.Compute();
 
   conf_pitch(out_pitch);
   conf_roll(out_roll);
   
-
+  m1.write(motor_power[0]);
+  m2.write(motor_power[1]);
+  m3.write(motor_power[2]);
+  m4.write(motor_power[3]);
 
    }
 
