@@ -18,9 +18,25 @@ double compAngleX, compAngleY;
 
 
 RF24 radio(7,8); 
-const byte address[6] = "00001";
+const byte address_read[6] = "00001";
+const byte address_write[6] = "00002";
 Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of moters
-
+//---------------------------checking if connections are proper----------------------------
+void checking()
+{int text,i=0;
+  while(radio.available())
+  {
+    radio.read(text,sizeof(text));
+    if(text==32)i++;
+    if(i==20)break;
+  }
+//----------------------------done checking-----------------------------------  
+radio.stopListening();
+radio.openWritingPipe(address_write);
+text=16;
+for(int j=0;j<30;j++)radio.write(text,sizeof(text));
+radio.startListening();
+}
 
 double P,I,D;
 
@@ -143,10 +159,12 @@ void setup()
   m4.attach(10);
   Serial.begin(9600);
   radio.begin();
-  radio.openReadingPipe(0, address);
+  radio.openReadingPipe(0, address_read);
   radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
-
+  
+  checking();
+  
   pitchPID.SetMode(AUTOMATIC);
   rollPID.SetMode(AUTOMATIC);
 
@@ -259,6 +277,10 @@ void loop()
   m2.write(motor_power[1]);
   m3.write(motor_power[2]);
   m4.write(motor_power[3]);
-
+  
+  Serial.println(motor_power[0]);
+  Serial.println(motor_power[1]);
+  Serial.println(motor_power[2]);
+  Serial.println(motor_power[3]);
+  Serial.println("-----------------------------------------------");
    }
-
