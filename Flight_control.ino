@@ -17,7 +17,7 @@ double compAngleX, compAngleY;
 
 
 
-RF24 radio(7,8); 
+RF24 radio(8,7); 
 const byte address_read[6] = "00001";
 const byte address_write[6] = "00002";
 Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of moters
