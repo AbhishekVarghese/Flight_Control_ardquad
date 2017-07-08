@@ -30,7 +30,7 @@ int throttle,hover;
 double inp_roll;
 double out_yaw,out_pitch,out_roll;
 
-double inp_data[5];
+int inp_data[5];
 int motor_power[4];
 
 
