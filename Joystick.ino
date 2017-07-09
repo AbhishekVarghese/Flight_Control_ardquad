@@ -97,7 +97,8 @@ void read_copter(){
   bool is_red = 1;
   Serial.println("insideread copter");
   for(int i =0;i<20;i++){
-    
+    radio.stopListening();
+    radio.openWritingPipe(address);
       if(radio.write(&to_send, sizeof(to_send))){
         Serial.println(i);
       }
@@ -111,6 +112,7 @@ void read_copter(){
         digitalWrite(colors[2],LOW);
       }
       is_red = !is_red;
+      Serial.println("inside for");
     }
         
     
@@ -153,7 +155,7 @@ void read_copter(){
 }
 
 void wait_for_arm(){
-  Serial.println("waiting for armin");
+  Serial.println("waiting for arming");
   int counter = 0;
   bool on = false;
   radio.stopListening();
@@ -161,6 +163,7 @@ void wait_for_arm(){
     if(digitalRead(butn_right)== HIGH){
       int msg = 4;
       Serial.println("sending arming message");
+      radio.openWritingPipe(address);
       if(radio.write(&msg,sizeof(msg))){
         Serial.println(" Arming message sent");
          break;
