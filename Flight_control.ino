@@ -188,28 +188,28 @@ void setup()
 
 void conf_throttle( int power) {
   //power ranges from 0 to  180
-  m1.write(power);
-  m2.write(power);
-  m3.write(power);
-  m4.write(power);
+ motor_power[0] = power;
+ motor_power[1] = power;
+ motor_power[2] = power;
+ motor_power[3] = power;
 }
 
 void conf_pitch( double angle) {
   
   angle = angle-compAngleY ;
-  int increment = map(abs(angle),0,20,hover,180);
+  int correction = map(abs(angle),0,20,hover,180);
   if (angle<0){
-    m1.write(hover + increment);
-    m2.write(hover+increment);
-    m3.write(hover-increment);
-    m4.write(hover-increment);
+    motor_power[0] = motor_power[0] + correction;
+    motor_power[1] = motor_power[1] + correction;
+    motor_power[2] = motor_power[2] + correction;
+    motor_power[3] = motor_power[3] + correction;
   }
 
   else if (angle>0) {
-    m1.write(hover - increment);
-    m2.write(hover-increment);
-    m3.write(hover+increment);
-    m4.write(hover+increment);
+    motor_power[0] = motor_power[0] + correction;
+    motor_power[1] = motor_power[1] + correction;
+    motor_power[2] = motor_power[2] + correction;
+    motor_power[3] = motor_power[3] + correction;
   }
 }
 
@@ -262,13 +262,17 @@ void loop()
   Serial.print(compAngleX);Serial.print("\t");
   Serial.print(compAngleY);Serial.print("\n");
   //---------------------------------Gyroend--------------------------------
+
+  req_roll=0;
+  req_pitch =0;
+  throttle = 0;
    
   if (radio.available()) {
     radio.read(&inp_data, sizeof(inp_data));
-    req_roll = inp_data[0];
-    req_pitch = inp_data[1];
-    req_yaw = inp_data[2];
-    throttle = inp_data[3];
+    req_roll = inp_data[3];
+    req_pitch = inp_data[2];
+    req_yaw = inp_data[1];
+    throttle = inp_data[0];
     
   }
   else Serial.println("Not available");
@@ -277,7 +281,7 @@ void loop()
 
   pitchPID.Compute();
   rollPID.Compute();
-
+  conf_throttle(throttle);
   conf_pitch(out_pitch);
   conf_roll(out_roll);
   
