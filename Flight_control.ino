@@ -22,43 +22,22 @@ const byte address_read[6] = "00001";
 const byte address_write[6] = "00002";
 Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of motors
 
-double P,I,D;
+double P = 0.5,I = 0.00047,D = 0.35;
 
 double req_yaw,req_pitch,req_roll;
 int throttle,hover;
 
 double inp_roll;
 double out_yaw,out_pitch,out_roll;
+double compPitch,compRoll;
 
 int inp_data[5];
 int motor_power[4];
 
 
-PID pitchPID(&compAngleY, &out_pitch, &req_pitch,P,I,D, DIRECT);
-PID rollPID(&compAngleX, &out_roll, &req_roll,P,I,D, DIRECT);
+PID pitchPID(&compPitch, &out_pitch, &req_pitch,P,I,D, DIRECT);
+PID rollPID(&compRoll, &out_roll, &req_roll,P,I,D, DIRECT);
 
-void checking()
-{
-  int text = 1,i=0;
-  while(true)
-  {
-    if (radio.available()){
-      radio.read(&text,sizeof(text));
-      if(text==32)i++;
-      if(i==20)break;
-    }
-
-
-  }
-
-  radio.stopListening();
-  text=16;
-  for(int i = 0; i < 20 ; i++) {
-    if (radio.write(&text,sizeof(text))) {
-      continue;
-    }
-  }
-}
 
 
 int arm(){
@@ -92,7 +71,7 @@ int arm(){
     if(abs(AcY- prev_acc)>500){
       break;
     }
-    conf_throttle(i);
+    //conf_throttle(i);
     hov_throttle+=1;
     delay(1000);
   }
@@ -170,11 +149,16 @@ void setup()
   radio.openWritingPipe(address_write);
   radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
-  
-  checking();
+ 
   
   pitchPID.SetMode(AUTOMATIC);
   rollPID.SetMode(AUTOMATIC);
+
+  
+  pitchPID.SetOutputLimits(-10,10);
+  rollPID.SetOutputLimits(-10,10);
+
+  
 
   // Restting the parameters
   req_roll = 0;
@@ -183,55 +167,10 @@ void setup()
   throttle = 0;
 
   //Watiting for ignition
-  wait_for_arm();
-}
-
-void conf_throttle( int power) {
-  //power ranges from 0 to  180
- motor_power[0] = power;
- motor_power[1] = power;
- motor_power[2] = power;
- motor_power[3] = power;
-}
-
-void conf_pitch( double angle) {
-  
-  angle = angle-compAngleY ;
-  int correction = map(abs(angle),0,20,hover,180);
-  if (angle<0){
-    motor_power[0] = motor_power[0] + correction;
-    motor_power[1] = motor_power[1] + correction;
-    motor_power[2] = motor_power[2] + correction;
-    motor_power[3] = motor_power[3] + correction;
-  }
-
-  else if (angle>0) {
-    motor_power[0] = motor_power[0] + correction;
-    motor_power[1] = motor_power[1] + correction;
-    motor_power[2] = motor_power[2] + correction;
-    motor_power[3] = motor_power[3] + correction;
-  }
+  //wait_for_arm();
 }
 
 
-void conf_roll( double angle) {
-  
-  angle = angle-compAngleX ;
- int  increment = map(abs(angle),0,20,hover,180);
-  if (angle<0){
-    m1.write(hover - increment);
-    m2.write(hover+increment);
-    m3.write(hover+increment);
-    m4.write(hover-increment);
-  }
-
-  else if (angle>0) {
-    m1.write(hover + increment);
-    m2.write(hover-increment);
-    m3.write(hover-increment);
-    m4.write(hover+increment);
-  }
-}
 
 
 void loop()
@@ -259,8 +198,10 @@ void loop()
   double gyroYrate = GyY/131.0; 
   compAngleX = 0.99 * (compAngleX + gyroXrate * dt) + 0.01 * roll; // Calculate the angle using a Complimentary filter
   compAngleY = 0.99 * (compAngleY + gyroYrate * dt) + 0.01 * pitch; 
-  Serial.print(compAngleX);Serial.print("\t");
-  Serial.print(compAngleY);Serial.print("\n");
+  compPitch = compAngleY +4.30;
+  compRoll = - compAngleX + 10.20;
+  Serial.print(compPitch);Serial.print("\t");
+  Serial.print(compRoll);Serial.print(" = ");
   //---------------------------------Gyroend--------------------------------
 
   req_roll=0;
@@ -272,27 +213,45 @@ void loop()
     req_roll = inp_data[3];
     req_pitch = inp_data[2];
     req_yaw = inp_data[1];
-    throttle = inp_data[0];
+    throttle = map(inp_data[0],0,1022,0,120);
     
   }
-  else Serial.println("Not available");
+ // else Serial.println("Not available");
 
   //Auto ajdjust roll,pitch and yaw
+   req_roll=0;
+  req_pitch =0;
 
   pitchPID.Compute();
   rollPID.Compute();
-  conf_throttle(throttle);
-  conf_pitch(out_pitch);
-  conf_roll(out_roll);
+
+  if (throttle >100){
+    motor_power[0] = throttle + out_roll + out_pitch;
+    motor_power[1] = throttle - out_roll + out_pitch;
+    motor_power[2] = throttle - out_roll - out_pitch;
+    motor_power[3] = throttle + out_roll - out_pitch; 
+  }
+
+  else {
+    
+
+  motor_power[0] = throttle;
+  motor_power[1] = throttle;
+  motor_power[2] = throttle;
+  motor_power[3] = throttle;
   
+  }
   m1.write(motor_power[0]);
   m2.write(motor_power[1]);
   m3.write(motor_power[2]);
   m4.write(motor_power[3]);
+
+  //Serial.print(out_pitch);Serial.print(",");
+  //Serial.print(out_roll);Serial.println(",");
   
-  Serial.println(motor_power[0]);
-  Serial.println(motor_power[1]);
-  Serial.println(motor_power[2]);
-  Serial.println(motor_power[3]);
+  Serial.print(motor_power[0]);Serial.print(",");
+  Serial.print(motor_power[1]);Serial.print(",");
+  Serial.print(motor_power[2]);Serial.print(",");
+  Serial.print(motor_power[3]);
   Serial.println("-----------------------------------------------");
-   }
+  }
