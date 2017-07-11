@@ -22,8 +22,8 @@ const byte address_read[6] = "00001";
 Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of motors
 
 //Create different pid variables for pitch and roll, however they should be nearly same so using same values for now
-double P= 0.5,I = 0.006,D = 0.0007;
-double P_rate =0.7 ,I_rate=0.005,D_rate=0.0007;
+double P= 0.1,I = 0.009,D = 0.0007;
+double P_rate =0.1 ,I_rate=0.01,D_rate=0.0007;
 
 double req_yaw,req_pitch,req_roll;
 int throttle,hover;
@@ -37,12 +37,14 @@ double compPitch, compRoll;
 int inp_data[5];
 int motor_power[4];
 
+PID pitchPID(&compPitch, &out_pitch_rate, &req_pitch, P,I,D, DIRECT);
+PID rollPID(&compRoll, &out_roll_rate, &req_roll, P,I,D, DIRECT);
+
+
 
 PID pitchPID_rate(&gyroXrate, &pitch_correction, &out_pitch_rate,P_rate, I_rate, D_rate, DIRECT);
 PID rollPID_rate(&gyroYrate, &roll_correction, &out_roll_rate,P_rate,I_rate,D_rate, DIRECT);
 
-PID pitchPID(&compPitch, &out_pitch_rate, &req_pitch, P,I,D, DIRECT);
-PID rollPID(&compRoll, &out_roll_rate, &req_roll, P,I,D, DIRECT);
 
 
 
@@ -153,7 +155,7 @@ void setup()
   Serial.begin(9600);
   radio.begin();
   radio.openReadingPipe(0, address_read);
-  radio.setPALevel(RF24_PA_MIN);
+  radio.setPALevel(RF24_PA_MAX);
   radio.startListening();
   
   
@@ -161,7 +163,10 @@ void setup()
   rollPID.SetMode(AUTOMATIC);
   pitchPID_rate.SetMode(AUTOMATIC);
   rollPID_rate.SetMode(AUTOMATIC);
-
+  
+  pitchPID.SetOutputLimits(-180,180);
+  rollPID.SetOutputLimits(-180,180);
+  
   pitchPID_rate.SetOutputLimits(-180,180);
   rollPID_rate.SetOutputLimits(-180,180);
 
@@ -211,21 +216,21 @@ void loop()
   req_roll=0;
   req_pitch =0;
   throttle = 0;
-  /*
+  
   if (radio.available()) {
     radio.read(&inp_data, sizeof(inp_data));
     req_roll = inp_data[3];
     req_pitch = inp_data[2];
     req_yaw = inp_data[1];
-    throttle = map(inp_data[0],0,1022,0,120);
-    
+    throttle = map(inp_data[0],0,1023,0,120);    
   }
-  else Serial.println("Not available");
-*/
+  //else Serial.println("Not available");
+
   //Auto ajdjust roll,pitch and yaw
 
   req_roll=0;
   req_pitch =0;
+  req_yaw= 0;
 
 
   pitchPID.Compute();
@@ -233,12 +238,14 @@ void loop()
   pitchPID_rate.Compute();
   rollPID_rate.Compute();
   throttle = 110;
+
+  Serial.print(pitch_correction);Serial.print(" , " ); Serial.println(roll_correction);
   
   if (throttle > 100) {
-    motor_power[0] =  throttle - roll_correction - pitch_correction;
-    motor_power[1] =  throttle + roll_correction - pitch_correction;
-    motor_power[2] =  throttle + roll_correction + pitch_correction;
-    motor_power[3] =  throttle - roll_correction + pitch_correction;
+    motor_power[0] =  throttle + roll_correction + pitch_correction;
+    motor_power[1] =  throttle - roll_correction + pitch_correction;
+    motor_power[2] =  throttle - roll_correction - pitch_correction;
+    motor_power[3] =  throttle + roll_correction - pitch_correction;
 
   }
 
@@ -255,10 +262,11 @@ void loop()
   m2.write(motor_power[1]);
   m3.write(motor_power[2]);
   m4.write(motor_power[3]);
+
   
-  Serial.print(motor_power[0]);Serial.print(",");
+  /*Serial.print(motor_power[0]);Serial.print(",");
   Serial.print(motor_power[1]);Serial.print(",");
   Serial.print(motor_power[2]);Serial.print(",");
   Serial.print(motor_power[3]);
   Serial.println("-----------------------------------------------");
-   }
+  */}
