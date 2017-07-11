@@ -22,8 +22,8 @@ const byte address_read[6] = "00001";
 Servo m1,m2,m3,m4;   //creating variables of type servo thet will control the speed of motors
 
 //Create different pid variables for pitch and roll, however they should be nearly same so using same values for now
-double P= 4.5,I = 1,D = 0.007;
-double P_rate =0.7 ,I_rate=1,D_rate=0.007;
+double P= 0.5,I = 0.006,D = 0.0007;
+double P_rate =0.7 ,I_rate=0.005,D_rate=0.0007;
 
 double req_yaw,req_pitch,req_roll;
 int throttle,hover;
@@ -31,20 +31,18 @@ int throttle,hover;
 double inp_roll;
 double yaw_correction, pitch_correction,roll_correction,out_yaw_rate,out_pitch_rate,out_roll_rate;
 double gyroXrate;
-double gyroYrate; 
-double compAngleX;
-double compAngleY;
-
+double gyroYrate;
+double compPitch, compRoll;
 
 int inp_data[5];
 int motor_power[4];
 
 
-PID pitchPID_rate(&gyroXrate, &pitch_corretion, &out_pitch_rate,P_rate, I_rate, D_rate, DIRECT);
+PID pitchPID_rate(&gyroXrate, &pitch_correction, &out_pitch_rate,P_rate, I_rate, D_rate, DIRECT);
 PID rollPID_rate(&gyroYrate, &roll_correction, &out_roll_rate,P_rate,I_rate,D_rate, DIRECT);
 
-PID pitchPID(&compAngleY, &out_pitch_rate, &req_pitch, P,I,D, DIRECT);
-PID rollPID(&compAngleX, &out_roll_rate, &req_roll, P,I,D, DIRECT);
+PID pitchPID(&compPitch, &out_pitch_rate, &req_pitch, P,I,D, DIRECT);
+PID rollPID(&compRoll, &out_roll_rate, &req_roll, P,I,D, DIRECT);
 
 
 
@@ -80,7 +78,7 @@ int arm(){
     if(abs(AcY- prev_acc)>500){
       break;
     }
-    conf_throttle(i);
+    //conf_throttle(i);
     hov_throttle+=1;
     delay(1000);
   }
@@ -137,8 +135,8 @@ void setup()
   double pitch = atan2(-AcX, AcZ)*degconvert;
 
   //3) set the starting angle to this pitch and roll
-   gyroXangle = roll;
-   gyroYangle = pitch;
+   double gyroXangle = roll;
+   double gyroYangle = pitch;
    compAngleX = roll;
    compAngleY = pitch;
 
@@ -161,6 +159,11 @@ void setup()
   
   pitchPID.SetMode(AUTOMATIC);
   rollPID.SetMode(AUTOMATIC);
+  pitchPID_rate.SetMode(AUTOMATIC);
+  rollPID_rate.SetMode(AUTOMATIC);
+
+  pitchPID_rate.SetOutputLimits(-180,180);
+  rollPID_rate.SetOutputLimits(-180,180);
 
   // Restting the parameters
   req_roll = 0;
@@ -198,14 +201,17 @@ void loop()
   gyroYrate = GyY/131.0; 
   compAngleX = 0.99 * (compAngleX + gyroXrate * dt) + 0.01 * roll; // Calculate the angle using a Complimentary filter
   compAngleY = 0.99 * (compAngleY + gyroYrate * dt) + 0.01 * pitch; 
-  Serial.print(compAngleX);Serial.print("\t");
-  Serial.print(compAngleY);Serial.print(" = ");
+
+  compRoll=-compAngleX;
+  compPitch = compAngleY;
+  Serial.print(compPitch);Serial.print("\t");
+  Serial.print(compRoll);Serial.print(" = ");
   //---------------------------------Gyroend--------------------------------
 
   req_roll=0;
   req_pitch =0;
   throttle = 0;
-   
+  /*
   if (radio.available()) {
     radio.read(&inp_data, sizeof(inp_data));
     req_roll = inp_data[3];
@@ -215,7 +221,7 @@ void loop()
     
   }
   else Serial.println("Not available");
-
+*/
   //Auto ajdjust roll,pitch and yaw
 
   req_roll=0;
@@ -226,6 +232,7 @@ void loop()
   rollPID.Compute();
   pitchPID_rate.Compute();
   rollPID_rate.Compute();
+  throttle = 110;
   
   if (throttle > 100) {
     motor_power[0] =  throttle - roll_correction - pitch_correction;
@@ -236,6 +243,7 @@ void loop()
   }
 
   else {
+    Serial.println("oh great");
     motor_power[0] =  throttle;
     motor_power[1] =  throttle;
     motor_power[2] =  throttle;
